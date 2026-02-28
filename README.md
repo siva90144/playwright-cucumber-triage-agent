@@ -1,215 +1,80 @@
-# PW Cucumber Triage Agent (TypeScript)
+# PW Cucumber Triage Agent
 
-A lightweight **AI-assisted, rule-based failure triage agent** for E2E runs that use **Playwright + Cucumber**.
+AI-assisted, rule-based CLI for triaging Playwright + Cucumber failures.
 
-It ingests **Cucumber JSON (large-file safe)** plus optional artifacts (console logs, traces, screenshots) and produces:
+It classifies failed scenarios, provides confidence and suggested actions, and can generate a business-friendly HTML report.
 
-- **Root-cause category** (per failed scenario)
-- **Confidence score** + evidence
-- **Suggested fix** (actionable next steps)
-- **Nice tabular output** for CI logs
-- **Auto-drafted Jira ticket payloads** (human approval gate)
-- **Eval record output** to measure accuracy over time
+## Quick Start
 
----
-
-## Quick Start (TypeScript only)
+Requirements: Node 18+
 
 ```bash
 npm install
-npm run typecheck
-npm test
-npm run start -- --cucumberJson path/to/cucumber.json
+npm run start -- --cucumberJson path/to/cucumber.json --html triage-report.html --out triage-eval.json
 ```
 
-Generate a business-friendly HTML report:
+## Common Commands
 
-```bash
-npm run start -- --cucumberJson path/to/cucumber.json --html triage-report.html
-```
-
-Optional compiled output:
-
-```bash
-npm run build
-```
-
----
-
-## Features
-
-### Inputs
-- **Cucumber JSON** report (**supports large files like 35MB** via streaming)
-- Optional **console log** (`.log` / `.txt`)
-- Optional **artifacts directory**:
-  - screenshots (`.png`, `.jpg`, `.webp`)
-  - traces (`trace*.zip`, `trace*.json`)
-  - videos (`.webm`, `.mp4`)
-- Optional run metadata:
-  - repo, branch, commit, PR, CI run URL, environment, baseURL
-
-### Outputs
-- **Category + confidence** per failed scenario
-- **Evidence** explaining why the classifier chose the category
-- **Suggested fix** list per scenario
-- **Summary table** grouped by category
-- **Detailed table** per failing scenario (CI-friendly format)
-- **Jira draft payloads** (title + description + labels)
-- **Eval run record JSON** for accuracy tracking over time
-
-### Guardrails
-- **Confidence score (0–1)**
-- **Human approval gate**:
-  - default: prints drafts only
-  - `--approve`: indicates approval intent (still draft-only in this project until you wire Jira API)
-
----
-
-## Root-cause Categories
-
-- `PRODUCT_REGRESSION`
-- `TEST_BUG`
-- `FLAKE`
-- `ENV_DEPENDENCY`
-- `INFRA`
-- `PERFORMANCE_TIMEOUT`
-- `DATA_STATE`
-- `UNKNOWN`
-
-> This starter version is rule-based. You can tune regex patterns to match your environment’s failure modes.
-> It is AI-assisted via heuristic classification and recommendation logic (not an LLM-backed model in this version).
-
----
-
-## Install
-
-Requirements: Node 18+ (recommended 20+)
-
-```bash
-npm install
-npm run typecheck
-npm test
-```
-
-Run directly from TypeScript (no build required):
+Basic run:
 
 ```bash
 npm run start -- --cucumberJson path/to/cucumber.json
 ```
 
-Optional (only if you want compiled output):
-
-```bash
-npm run build
-```
-
----
-
-## Usage
-
-Draft-only (default):
+With optional artifacts and run metadata:
 
 ```bash
 npm run start -- \
-  --cucumberJson cucumber-report/cucumber.json \
+  --cucumberJson artifacts/cucumber-report.json \
   --console artifacts/console.log \
   --artifacts artifacts/ \
   --repo my-repo \
-  --workflowUrl "https://github.com/org/repo/actions/runs/123" \
-  --commit abcdef123 \
   --branch main \
-  --pr 42 \
+  --commit abc123 \
+  --workflowUrl "https://github.com/org/repo/actions/runs/123" \
   --env staging \
-  --baseUrl "https://staging.example.com" \
-  --jiraProject E2E \
-  --jiraType Bug \
-  --out triage-eval.json \
-  --html triage-report.html
+  --html artifacts/triage-report.html \
+  --out artifacts/triage-eval.json
 ```
 
-Approval intent:
+## What You Get
 
-```bash
-npm run start -- --cucumberJson cucumber-report/cucumber.json --approve
-```
-
-Large runs / meltdown protection:
-
-```bash
-npm run start -- --cucumberJson cucumber-report/cucumber.json --maxFailures 200
-```
-
----
+- Category and confidence per failed scenario
+- Suggested fix per scenario
+- Terminal summary and details tables
+- Jira draft payloads (draft-only)
+- HTML report (`--html`)
+- Eval JSON (`--out`)
 
 ## Consumer Guide (Other Projects)
 
-This package is primarily a CLI tool. Most teams should consume it by running `pw-triage` in CI/local scripts.
-
-### Best practice (recommended)
-
-Install as a dev dependency in the consumer repository and run via an npm script. This keeps versions pinned and reproducible in CI.
+Best practice: install as a dev dependency and run via script (stable and CI-friendly).
 
 ```bash
 npm install --save-dev pw-cucumber-triage-agent
 ```
 
-Suggested script in consumer `package.json`:
+Example consumer script:
 
 ```json
 {
   "scripts": {
-    "triage:e2e": "pw-triage --cucumberJson artifacts/cucumber.json --html artifacts/triage-report.html --out artifacts/triage-eval.json"
+    "triage:e2e": "pw-triage --cucumberJson artifacts/cucumber-report.json --html artifacts/triage-report.html --out artifacts/triage-eval.json"
   }
 }
 ```
 
-Run:
+Alternatives:
 
-```bash
-npm run triage:e2e
-```
+- `npx pw-cucumber-triage-agent --cucumberJson path/to/cucumber.json --html triage-report.html`
+- `npx pw-triage --cucumberJson path/to/cucumber.json --html triage-report.html` (after install)
+- `npm install -g pw-cucumber-triage-agent` then `pw-triage ...`
 
-### 1) Use with npx (no permanent install)
+## CI Examples
 
-```bash
-npx pw-cucumber-triage-agent --cucumberJson path/to/cucumber.json --html triage-report.html
-```
-
-### 2) Install in another project and run directly
-
-```bash
-npx pw-triage --cucumberJson path/to/cucumber.json --html triage-report.html
-```
-
-### 3) Global install (local machine convenience)
-
-```bash
-npm install -g pw-cucumber-triage-agent
-pw-triage --cucumberJson path/to/cucumber.json --html triage-report.html
-```
-
-### Example CI command
-
-```bash
-npx pw-triage \
-  --cucumberJson artifacts/cucumber-report.json \
-  --console artifacts/console.log \
-  --artifacts artifacts/ \
-  --repo my-repo \
-  --branch "$GITHUB_REF_NAME" \
-  --commit "$GITHUB_SHA" \
-  --workflowUrl "https://github.com/org/repo/actions/runs/$GITHUB_RUN_ID" \
-  --env staging \
-  --out artifacts/triage-eval.json \
-  --html artifacts/triage-report.html
-```
-
-### GitHub Actions example
+GitHub Actions step:
 
 ```yaml
-- name: Install triage tool
-  run: npm install --save-dev pw-cucumber-triage-agent
-
 - name: Run failure triage
   if: always()
   run: |
@@ -221,139 +86,75 @@ npx pw-triage \
       --branch "${{ github.ref_name }}" \
       --commit "${{ github.sha }}" \
       --workflowUrl "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-      --out artifacts/triage-eval.json \
-      --html artifacts/triage-report.html
-
-- name: Upload triage artifacts
-  if: always()
-  uses: actions/upload-artifact@v4
-  with:
-    name: triage-report
-    path: |
-      artifacts/triage-report.html
-      artifacts/triage-eval.json
+      --html artifacts/triage-report.html \
+      --out artifacts/triage-eval.json
 ```
 
-> Note: this package is currently CLI-first; importing it as a programmatic library API is not supported in this version.
-
-### Jenkins Pipeline example
+Jenkins example:
 
 ```groovy
-pipeline {
-  agent any
-  stages {
-    stage('Install') {
-      steps {
-        sh 'npm ci'
-        sh 'npm install --save-dev pw-cucumber-triage-agent'
-      }
-    }
-    stage('Run Triage') {
-      steps {
-        sh '''
-          npx pw-triage \
-            --cucumberJson artifacts/cucumber-report.json \
-            --console artifacts/console.log \
-            --artifacts artifacts/ \
-            --repo "$JOB_NAME" \
-            --branch "$BRANCH_NAME" \
-            --commit "$GIT_COMMIT" \
-            --workflowUrl "$BUILD_URL" \
-            --out artifacts/triage-eval.json \
-            --html artifacts/triage-report.html
-        '''
-      }
-    }
-  }
-  post {
-    always {
-      archiveArtifacts artifacts: 'artifacts/triage-report.html,artifacts/triage-eval.json', allowEmptyArchive: true
-    }
-  }
-}
+sh '''
+  npx pw-triage \
+    --cucumberJson artifacts/cucumber-report.json \
+    --console artifacts/console.log \
+    --artifacts artifacts/ \
+    --repo "$JOB_NAME" \
+    --branch "$BRANCH_NAME" \
+    --commit "$GIT_COMMIT" \
+    --workflowUrl "$BUILD_URL" \
+    --html artifacts/triage-report.html \
+    --out artifacts/triage-eval.json
+'''
 ```
-
----
 
 ## CLI Options
 
 | Option | Required | Description |
 |---|---:|---|
-| `--cucumberJson <path>` | ✅ | Path to `cucumber.json` |
-| `--console <path>` | ❌ | Console log file path |
-| `--artifacts <dir>` | ❌ | Directory containing traces/screenshots/videos |
-| `--maxFailures <n>` | ❌ | Stop after N failures (default 500) |
-| `--repo <name>` | ❌ | Repo name |
+| `--cucumberJson <path>` | ✅ | Path to Cucumber JSON report |
+| `--console <path>` | ❌ | Console log text file |
+| `--artifacts <dir>` | ❌ | Artifacts folder (screenshots/traces/videos) |
+| `--maxFailures <n>` | ❌ | Stop after N failures (default `500`) |
+| `--repo <name>` | ❌ | Repository name |
 | `--workflowUrl <url>` | ❌ | CI run URL |
 | `--commit <sha>` | ❌ | Commit SHA |
-| `--branch <name>` | ❌ | Branch |
-| `--pr <num>` | ❌ | PR number |
+| `--branch <name>` | ❌ | Branch name |
+| `--pr <num>` | ❌ | Pull request number |
 | `--env <name>` | ❌ | Environment name |
-| `--baseUrl <url>` | ❌ | baseURL |
+| `--baseUrl <url>` | ❌ | Base URL |
 | `--jiraProject <key>` | ❌ | Jira project key (default `E2E`) |
 | `--jiraType <type>` | ❌ | Jira issue type (default `Bug`) |
-| `--approve` | ❌ | Human approval intent (draft-only unless you wire Jira API) |
-| `--out <path>` | ❌ | Write eval run record JSON |
-| `--html <path>` | ❌ | Write business-friendly HTML report |
+| `--approve` | ❌ | Approval intent flag (still draft-only) |
+| `--out <path>` | ❌ | Write eval JSON |
+| `--html <path>` | ❌ | Write HTML report |
 
----
+## Notes
 
-## Output
+- Current version is CLI-first (no programmatic import API).
+- Jira integration is draft-only by design in this version.
 
-### 1) Category Summary Table
-Shows how failures split across categories.
+## Troubleshooting
 
-### 2) Detailed Scenario Table
-One row per failed scenario with category, confidence, fingerprint, and top error.
+- `required option '--cucumberJson <path>' not specified`
+  - Use: `--cucumberJson /absolute/or/relative/path/to/cucumber.json`
+  - Example: `npm run start -- --cucumberJson artifacts/cucumber-report.json`
 
-### 3) Suggested Fixes
-Compact list: top fix per scenario.
+- `Cucumber JSON not found: ...`
+  - Verify path and quoting for spaces.
+  - Example: `--cucumberJson "/Users/me/Downloads/cucumber report.json"`
 
-### 4) Jira Drafts (JSON)
-Prints draft payloads you can submit via Jira REST API once you add a client.
+- `pw-triage: command not found` in another project
+  - Run via `npx pw-triage ...`, or install as dev dependency first.
+  - `npm install --save-dev pw-cucumber-triage-agent`
 
-### 5) Business HTML Report
-Generates an executive-friendly HTML report with summary metrics, category breakdown, action plan, and scenario detail table.
+- `No failed scenarios found in cucumber JSON`
+  - Confirm the report has failed steps and is the correct run artifact.
+  - Ensure you are passing Cucumber JSON output (not HTML report).
 
----
-
-## Handling 35MB JSON
-
-This project uses a **streaming Cucumber JSON parser** (`stream-json`) so it does **not** `JSON.parse()` the full report.
-It extracts only failed steps, which keeps memory stable in CI.
-
----
-
-## Jira submission (optional)
-
-This project intentionally does **draft-only** output to keep it safe and portable.
-
-Recommended next step:
-- Implement a Jira REST client that:
-  - requires `--approve`
-  - requires `confidence >= 0.70`
-  - dedupes by label `fp-<fingerprint>`
-
----
-
-## Project Structure
-
-```
-src/
-  cli.ts
-  cucumber_stream.ts
-  classify.ts
-  suggest.ts
-  triage_per_scenario.ts
-  jira.ts
-  fingerprints.ts
-  load_artifacts.ts
-  table.ts
-  eval.ts
-  types.ts
-```
-
----
+- HTML report not generated
+  - Add `--html <output-file>`, for example `--html artifacts/triage-report.html`
+  - Check write permissions to the output directory.
 
 ## License
+
 Apache-2.0
